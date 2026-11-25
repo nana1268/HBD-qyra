@@ -1,0 +1,297 @@
+
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Happy Birthday to my Qyra mi amor</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      background-color: #000000;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Courier New', Courier, monospace;
+      user-select: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .hint {
+      position: fixed;
+      bottom: 16px;
+      color: rgba(255, 182, 193, 0.45);
+      font-size: 12px;
+      letter-spacing: 1px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div class="hint">اضغط في أي مكان لإطلاق الألعاب النارية ✨</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height, cx, cy, baseScale;
+
+    function resize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+      cx = width / 2;
+      cy = height / 2 - 15;
+      baseScale = Math.min(width, height) / 48;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ألوان طبقات القلب المتدرجة (نفس ستايل بايثون)
+    const heartColors = [
+      '#ff4d6d',
+      '#ff758f',
+      '#ff8fa3',
+      '#ffb3c1',
+      '#ffccd5',
+      '#fff0f3'
+    ];
+
+    // تجهيز نقاط القلب النصية
+    const heartPoints = [];
+    const totalLayers = 6;
+    const stepsPerLayer = 115;
+
+    for (let layer = 0; layer < totalLayers; layer++) {
+      const scaleFactor = 0.65 + layer * 0.085;
+      const color = heartColors[layer % heartColors.length];
+      const fontSize = Math.max(7, Math.round(baseScale * (0.42 + layer * 0.045)));
+
+      for (let i = 0; i < stepsPerLayer; i++) {
+        const angle = (i * Math.PI) / (stepsPerLayer / 2);
+        const hx = 16 * Math.pow(Math.sin(angle), 3);
+        const hy = -(
+          13 * Math.cos(angle) -
+          5 * Math.cos(2 * angle) -
+          2 * Math.cos(3 * angle) -
+          Math.cos(4 * angle)
+        );
+        heartPoints.push({
+          hx,
+          hy,
+          scaleFactor,
+          color,
+          fontSize,
+          text: i % 5 === 0 ? 'احبك' : 'I love you'
+        });
+      }
+    }
+
+    let drawnCount = 0;
+    const drawSpeed = 9; // سرعة رسم النصوص تدريجياً
+
+    // نظام الألعاب النارية الملونة
+    const fireworks = [];
+    const particles = [];
+    const fwColors = [
+      '#ffbe0b',
+      '#fb5607',
+      '#ff006e',
+      '#8338ec',
+      '#3a86ff',
+      '#06d6a0',
+      '#ff4d6d',
+      '#ffd166'
+    ];
+
+    class Firework {
+      constructor(targetX, targetY) {
+        this.x = targetX + (Math.random() - 0.5) * 80;
+        this.y = height;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.color = fwColors[Math.floor(Math.random() * fwColors.length)];
+        const angle = Math.atan2(targetY - this.y, targetX - this.x);
+        const speed = 7 + Math.random() * 3;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.trail = [];
+      }
+
+      update() {
+        this.trail.push({ x: this.x, y: this.y });
+        if (this.trail.length > 6) this.trail.shift();
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        const dist = Math.hypot(this.targetX - this.x, this.targetY - this.y);
+        if (dist < 15 || this.y <= this.targetY) {
+          this.explode();
+          return false;
+        }
+        return true;
+      }
+
+      explode() {
+        const count = 42;
+        for (let i = 0; i < count; i++) {
+          const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.2;
+          const speed = 1.5 + Math.random() * 4.2;
+          particles.push({
+            x: this.x,
+            y: this.y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            alpha: 1,
+            decay: 0.014 + Math.random() * 0.015,
+            color: Math.random() > 0.25 ? this.color : fwColors[Math.floor(Math.random() * fwColors.length)],
+            size: 2 + Math.random() * 2
+          });
+        }
+      }
+
+      draw() {
+        ctx.save();
+        for (let i = 0; i < this.trail.length; i++) {
+          const pt = this.trail[i];
+          ctx.fillStyle = this.color;
+          ctx.globalAlpha = (i + 1) / this.trail.length;
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+
+    function spawnRandomFirework() {
+      // اختيار مواقع حول القلب حتى لا تغطي النص في المنتصف
+      const side = Math.random();
+      let tx, ty;
+      if (side < 0.4) {
+        tx = width * (0.1 + Math.random() * 0.22);
+        ty = height * (0.15 + Math.random() * 0.65);
+      } else if (side < 0.8) {
+        tx = width * (0.68 + Math.random() * 0.22);
+        ty = height * (0.15 + Math.random() * 0.65);
+      } else {
+        tx = width * (0.25 + Math.random() * 0.5);
+        ty = height * (0.1 + Math.random() * 0.16);
+      }
+      fireworks.push(new Firework(tx, ty));
+    }
+
+    // إطلاق ألعاب نارية عند النقر أو اللمس
+    window.addEventListener('pointerdown', (e) => {
+      fireworks.push(new Firework(e.clientX, e.clientY));
+    });
+
+    let frame = 0;
+    function animate() {
+      frame++;
+      // مسح الخلفية مع أثر خفيف للألعاب النارية
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.fillRect(0, 0, width, height);
+
+      // زيادة عدد النقاط المرسومة تدريجياً
+      if (drawnCount < heartPoints.length) {
+        drawnCount = Math.min(heartPoints.length, drawnCount + drawSpeed);
+      }
+
+      // نبضة خفيفة بعد اكتمال الرسم
+      const pulse =
+        drawnCount >= heartPoints.length
+          ? 1 + Math.sin(frame * 0.05) * 0.03
+          : 1;
+
+      // رسم نصوص القلب
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let i = 0; i < drawnCount; i++) {
+        const p = heartPoints[i];
+        const x = cx + p.hx * baseScale * p.scaleFactor * pulse;
+        const y = cy + p.hy * baseScale * p.scaleFactor * pulse;
+
+        ctx.fillStyle = p.color;
+        ctx.font = `bold ${p.fontSize}px 'Courier New', monospace`;
+        ctx.fillText(p.text, x, y);
+      }
+
+      // كتابة عبارة التهنئة داخل القلب بعد رسم جزء منه
+      if (drawnCount > heartPoints.length * 0.35) {
+        const textAlpha = Math.min(1, (drawnCount - heartPoints.length * 0.35) / 120);
+        ctx.save();
+        ctx.globalAlpha = textAlpha;
+
+        const titleSize = Math.max(13, Math.round(baseScale * 1.15));
+        ctx.fillStyle = '#ffb6c1';
+        ctx.shadowColor = '#ff4d6d';
+        ctx.shadowBlur = 12;
+        ctx.font = `bold ${titleSize}px 'Courier New', monospace`;
+        ctx.fillText('Happy Birthday', cx, cy - titleSize * 1.1);
+        ctx.fillText('to my Qyra mi amor', cx, cy + titleSize * 0.2);
+
+        const arSize = Math.max(18, Math.round(baseScale * 1.6));
+        ctx.fillStyle = '#ff4d6d';
+        ctx.font = `bold ${arSize}px Tahoma, Arial, sans-serif`;
+        ctx.fillText('احبك', cx, cy + titleSize * 1.9);
+
+        ctx.restore();
+      }
+
+      // إطلاق ألعاب نارية تلقائية باستمرار
+      if (frame % 38 === 0) {
+        spawnRandomFirework();
+      }
+
+      for (let i = fireworks.length - 1; i >= 0; i--) {
+        fireworks[i].draw();
+        if (!fireworks[i].update()) {
+          fireworks.splice(i, 1);
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.vy += 0.05; // جاذبية خفيفة
+        pt.vx *= 0.98;
+        pt.vy *= 0.98;
+        pt.alpha -= pt.decay;
+
+        if (pt.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.globalAlpha = pt.alpha;
+        ctx.fillStyle = pt.color;
+        ctx.shadowColor = pt.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  </script>
+</body>
+</html>
